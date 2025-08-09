@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="bn">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Postimg.cc: Upload → Direct JPG Link</title>
+  <style>
+    body{font-family:system-ui,Segoe UI,Roboto,Arial;margin:20px;background:#f4f4f4;color:#333}
+    .container{max-width:600px;margin:0 auto;padding:20px;background:#fff;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.08)}
+    h1{font-size:20px;margin-bottom:15px}
+    input[type=file]{display:block;margin-bottom:15px}
+    button{padding:8px 14px;margin-right:8px;border:none;border-radius:6px;background:#0078d4;color:#fff;cursor:pointer}
+    button.clear{background:#888}
+    .preview{margin-bottom:15px;border:1px dashed #aaa;padding:10px;text-align:center;color:#888}
+    img.preview-img{max-width:100%;max-height:200px}
+    .status{margin-top:10px;color:#555}
+    .result{margin-top:15px;word-wrap:break-word}
+    .result a{color:#0078d4}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Postimg.cc এ ছবি আপলোড → Direct JPG Link</h1>
+    <input type="file" id="fileInput" accept="image/*">
+    <div class="preview" id="preview">ছবি সিলেক্ট করুন</div>
+    <button id="uploadBtn">Upload</button>
+    <button class="clear" id="clearBtn">Clear</button>
+    <div class="status" id="status">Status: অপেক্ষা করা হচ্ছে...</div>
+    <div class="result" id="result">সাফল্যে আপলোড হলে এখানে Direct লিংক দেখাবে।</div>
+  </div>
+
+  <script>
+    const fileInput = document.getElementById('fileInput');
+    const preview = document.getElementById('preview');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const status = document.getElementById('status');
+    const result = document.getElementById('result');
+    let selectedFile = null;
+    let directLink = '';
+
+    fileInput.addEventListener('change', e => {
+      const f = e.target.files[0] || null;
+      selectedFile = f;
+      preview.innerHTML = '';
+      if (f) {
+        const reader = new FileReader();
+        reader.onload = ev => {
+          const img = document.createElement('img');
+          img.src = ev.target.result;
+          img.className = 'preview-img';
+          preview.appendChild(img);
+        };
+        reader.readAsDataURL(f);
+      } else {
+        preview.textContent = 'ছবি সিলেক্ট করুন';
+      }
+    });
+
+    clearBtn.addEventListener('click', () => {
+      fileInput.value = '';
+      preview.innerHTML = 'ছবি সিলেক্ট করুন';
+      status.textContent = 'Status: অপেক্ষা করা হচ্ছে...';
+      result.textContent = 'সাফল্যে আপলোড হলে এখানে Direct লিংক দেখাবে।';
+      directLink = '';
+      selectedFile = null;
+    });
+
+    uploadBtn.addEventListener('click', async () => {
+      if (!selectedFile) {
+        alert('প্রথমে একটি ছবি সিলেক্ট করুন।');
+        return;
+      }
+      status.textContent = 'Status: Base64 এ রূপান্তর করা হচ্ছে…';
+      const base64 = await new Promise((res, rej) => {
+        const fr = new FileReader();
+        fr.onload = () => res(fr.result.split(',')[1]);
+        fr.onerror = () => rej(fr.error);
+        fr.readAsDataURL(selectedFile);
+      });
+
+      status.textContent = 'Status: Postimg.cc এ আপলোড করা হচ্ছে…';
+      const form = new FormData();
+      form.append('upload', base64);
+      form.append('upload_file', selectedFile.name);
+
+      try {
+        const resp = await fetch('https://api.postimg.cc/upload', {
+          method: 'POST',
+          body: form
+        });
+        const json = await resp.json();
+        if (!resp.ok || json.status !== 'ok') {
+          status.textContent = 'Status: Upload failed';
+          result.textContent = JSON.stringify(json);
+          return;
+        }
+        directLink = json.links.original;
+        status.textContent = 'Status: Upload সফল!';
+        result.innerHTML = `<a href="${directLink}" target="_blank">${directLink}</a>`;
+      } catch (err) {
+        status.textContent = 'Status: Error during upload';
+        result.textContent = err.toString();
+      }
+    });
+  </script>
+</body>
+</html>
